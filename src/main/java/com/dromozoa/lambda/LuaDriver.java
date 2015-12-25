@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.Process;
 import java.lang.ProcessBuilder;
+import java.net.URL;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -20,7 +21,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 
 public class LuaDriver implements RequestStreamHandler {
-  public static int pipe(InputStream inputStream, OutputStream outputStream) throws IOException {
+  private static int pipe(InputStream inputStream, OutputStream outputStream) throws IOException {
     int result = 0;
 
     byte[] buffer = new byte[4096];
@@ -36,7 +37,7 @@ public class LuaDriver implements RequestStreamHandler {
     return result;
   }
 
-  public static class PipeTask implements Callable<Integer> {
+  private static class PipeTask implements Callable<Integer> {
     private InputStream inputStream_;
     private OutputStream outputStream_;
 
@@ -51,30 +52,49 @@ public class LuaDriver implements RequestStreamHandler {
     }
   }
 
-  private void loadProperties() throws IOException {
-    try (InputStream inputStream = LuaDriver.class.getClassLoader().getResourceAsStream("dromozoa-lambda.xml")) {
-      if (inputStream != null) {
-        Properties properties = new Properties();
-        properties.loadFromXML(inputStream);
-        System.out.println(properties.get("script"));
+  private static URL getResource(String name) {
+    return LuaDriver.class.getClassLoader().getResource(name);
+  }
+
+  private static InputStream getResourceAsStream(String name) {
+    return LuaDriver.class.getClassLoader().getResourceAsStream(name);
+  }
+
+  private static File getResourceAsFile(String name) throws IOException {
+    URL url = getResource(name);
+    if (url != null) {
+      if (url.getProtocol().equals("file")) {
+        return new File(url.getPath());
+      } else {
+        File file = File.createTempFile("dromozoa-lambda", null);
+        file.deleteOnExit();
+        try (InputStream inputStream = getResourceAsStream(name); OutputStream outputStream = new FileOutputStream(file)) {
+          pipe(inputStream, outputStream);
+        }
+        return file;
       }
     }
+    return null;
+  }
+
+  private static Properties getResourceAsProperties(String name) throws IOException {
+    Properties properties = new Properties();
+    try (InputStream inputStream = getResourceAsStream(name)) {
+      if (name.toLowerCase().endsWith(".xml")) {
+        properties.loadFromXML(inputStream);
+      } else {
+        properties.load(inputStream);
+      }
+    }
+    return properties;
   }
 
   public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
-    loadProperties();
+    Properties properties = getResourceAsProperties("dromozoa-lambda.xml");
+    String lua = properties.getProperty("lua", "lua");
+    File script = getResourceAsFile(properties.getProperty("script", "main.lua"));
 
-    File scriptFile = File.createTempFile("main", ".lua");
-    scriptFile.deleteOnExit();
-
-    try (
-        FileOutputStream out = new FileOutputStream(scriptFile);
-        InputStream in = LuaDriver.class.getClassLoader().getResourceAsStream("main.lua")
-    ) {
-      pipe(in, out);
-    }
-
-    ProcessBuilder processBuilder = new ProcessBuilder("lua", scriptFile.getAbsolutePath());
+    ProcessBuilder processBuilder = new ProcessBuilder(lua, script.getAbsolutePath());
     Process process = processBuilder.start();
 
     // ExecutorService executorService = Executors.newFixedThreadPool(4);
