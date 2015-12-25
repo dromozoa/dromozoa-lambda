@@ -14,18 +14,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 
-public class LuaHandler implements RequestStreamHandler {
+public class LuaDriver implements RequestStreamHandler {
   public static int pipe(InputStream inputStream, OutputStream outputStream) throws IOException {
     int result = 0;
 
     byte[] buffer = new byte[4096];
     while (true) {
       int n = inputStream.read(buffer, 0, buffer.length);
-      System.out.println("n=" + n);
       if (n == -1) {
         break;
       }
@@ -33,7 +33,6 @@ public class LuaHandler implements RequestStreamHandler {
       result += n;
     }
 
-    System.out.println("result=" + result);
     return result;
   }
 
@@ -52,13 +51,25 @@ public class LuaHandler implements RequestStreamHandler {
     }
   }
 
+  private void loadProperties() throws IOException {
+    try (InputStream inputStream = LuaDriver.class.getClassLoader().getResourceAsStream("dromozoa-lambda.xml")) {
+      if (inputStream != null) {
+        Properties properties = new Properties();
+        properties.loadFromXML(inputStream);
+        System.out.println(properties.get("script"));
+      }
+    }
+  }
+
   public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
-    File scriptFile = File.createTempFile("dromozoa-lambda", ".lua");
+    loadProperties();
+
+    File scriptFile = File.createTempFile("main", ".lua");
     scriptFile.deleteOnExit();
 
     try (
         FileOutputStream out = new FileOutputStream(scriptFile);
-        InputStream in = LuaHandler.class.getClassLoader().getResourceAsStream("main.lua")
+        InputStream in = LuaDriver.class.getClassLoader().getResourceAsStream("main.lua")
     ) {
       pipe(in, out);
     }
@@ -76,9 +87,7 @@ public class LuaHandler implements RequestStreamHandler {
 
     for (Future<Integer> future : futures) {
       try {
-        System.out.println(future + "," + future.isCancelled() + "," + future.isDone());
         Integer v = future.get();
-        System.out.println(v);
       } catch (InterruptedException e) {
         System.err.println(e);
       } catch (ExecutionException e) {
@@ -98,7 +107,7 @@ public class LuaHandler implements RequestStreamHandler {
   }
 
   public static void main(String[] args) throws Exception {
-    LuaHandler self = new LuaHandler();
+    LuaDriver self = new LuaDriver();
     self.handleRequest(System.in, System.out, null);
   }
 }
