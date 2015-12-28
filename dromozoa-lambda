@@ -33,7 +33,8 @@ case x$tmp in
 esac
 trap "(cd / && rm -f -r '$tmp')" 0
 
-cp "$0.jar" "$tmp/output.jar"
 dromozoa-amalgamate -o "$tmp/main.lua" "$script" "$@"
-(cd "$tmp" && zip -9q output.jar main.lua)
+"$0-xml" "$@" >"$tmp/dromozoa-lambda.xml"
+cp "$0.jar" "$tmp/output.jar"
+(cd "$tmp" && zip -9q output.jar main.lua dromozoa-lambda.xml)
 mv "$tmp/output.jar" "$output"

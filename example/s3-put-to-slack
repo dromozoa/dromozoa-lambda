@@ -1,0 +1,44 @@
+#! /usr/bin/env lua
+
+-- Copyright (C) 2015 Tomoyuki Fujimori <moyu@dromozoa.com>
+--
+-- This file is part of dromozoa-lambda.
+--
+-- dromozoa-lambda is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation, either version 3 of the License, or
+-- (at your option) any later version.
+--
+-- dromozoa-lambda is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU General Public License
+-- along with dromozoa-lambda.  If not, see <http://www.gnu.org/licenses/>.
+
+local json = require "dromozoa.commons.json"
+local sequence_writer = require "dromozoa.commons.sequence_writer"
+local http = require "dromozoa.http"
+
+local hook_url = ...
+local out = sequence_writer()
+
+local event = json.decode(io.read("*a"))
+for record in event.Records:each() do
+  local aws_region = record.awsRegion
+  local end_point
+  if aws_region == "us-east-1" then
+    end_point = "s3.amazonaws.com"
+  else
+    end_point = "s3-" .. aws_region .. ".amazonaws.com"
+  end
+  out:write(("%s https://%s.%s/%s\n"):format(record.eventName, record.s3.bucket.name, end_point, record.s3.object.key))
+end
+
+local request = http.request("POST", hook_url)
+request.content = json.encode({
+  username = "test";
+  text = out:concat();
+})
+assert(http.user_agent():request(request))
