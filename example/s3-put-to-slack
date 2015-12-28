@@ -33,7 +33,7 @@ for record in event.Records:each() do
   else
     end_point = "s3-" .. aws_region .. ".amazonaws.com"
   end
-  out:write(("PUT https://%s.%s/%s\n"):format(record.s3.bucket.name, end_point, record.s3.object.key))
+  out:write(("%s https://%s.%s/%s\n"):format(record.eventName, record.s3.bucket.name, end_point, record.s3.object.key))
 end
 
 local request = http.request("POST", hook_url)
