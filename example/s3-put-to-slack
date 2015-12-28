@@ -22,28 +22,23 @@ local sequence_writer = require "dromozoa.commons.sequence_writer"
 local http = require "dromozoa.http"
 
 local hook_url = ...
+local out = sequence_writer()
 
 local event = json.decode(io.read("*a"))
-
-local out = sequence_writer()
 for record in event.Records:each() do
   local aws_region = record.awsRegion
-  local bucket_name = record.s3.bucket.name
-  local object_key = record.s3.object.key
   local end_point
   if aws_region == "us-east-1" then
     end_point = "s3.amazonaws.com"
   else
     end_point = "s3-" .. aws_region .. ".amazonaws.com"
   end
-  out:write(("PUT https://%s.%s/%s\n"):format(bucket_name, end_point, object_key))
+  out:write(("PUT https://%s.%s/%s\n"):format(record.s3.bucket.name, end_point, record.s3.object.key))
 end
-
-local ua = http.user_agent()
 
 local request = http.request("POST", hook_url)
 request.content = json.encode({
   username = "test";
   text = out:concat();
 })
-assert(ua:request(request))
+assert(http.user_agent():request(request))
