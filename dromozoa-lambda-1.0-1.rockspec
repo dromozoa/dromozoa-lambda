@@ -19,7 +19,7 @@ build = {
   install = {
     bin = {
       ["dromozoa-lambda"] = "dromozoa-lambda";
-      ["dromozoa-lambda-1.0.jar"] = "target/dromozoa-lambda-1.0.jar";
+      ["dromozoa-lambda.jar"] = "dromozoa-lambda.jar";
     };
   };
 }
