@@ -9,12 +9,9 @@ import java.lang.Process;
 import java.lang.ProcessBuilder;
 import java.net.URL;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -121,15 +118,6 @@ public class LuaDriver implements RequestStreamHandler {
     return properties;
   }
 
-  private static Integer getFuture(Future<Integer> future, Context context) {
-    try {
-      return future.get();
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-    return null;
-  }
-
   public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
     Properties properties = getResourceAsProperties("dromozoa-lambda.xml");
     String lua = properties.getProperty("lua", "lua");
@@ -146,17 +134,19 @@ public class LuaDriver implements RequestStreamHandler {
 
     try (InputStream stdoutStream = process.getInputStream(); InputStream stderrStream = process.getErrorStream()) {
       OutputStream stdinStream = process.getOutputStream();
-
       ExecutorService executorService = Executors.newFixedThreadPool(4);
-      Future<Integer> stdinFuture = executorService.submit(new CopyTask(inputStream, stdinStream).setCloseOutputStream());
-      Future<Integer> stdoutFuture = executorService.submit(new CopyTask(stdoutStream, outputStream));
-      Future<Integer> stderrFuture = executorService.submit(new CopyTask(stderrStream, System.err));
-      Future<Integer> processFuture = executorService.submit(new ProcessTask(process));
-
-      getFuture(stdinFuture, context);
-      getFuture(stdoutFuture, context);
-      getFuture(stderrFuture, context);
-      getFuture(processFuture, context);
+      List<Future<Integer>> futures = new ArrayList<Future<Integer>>();
+      futures.add(executorService.submit(new CopyTask(inputStream, stdinStream).setCloseOutputStream()));
+      futures.add(executorService.submit(new CopyTask(stdoutStream, outputStream)));
+      futures.add(executorService.submit(new CopyTask(stderrStream, System.err)));
+      futures.add(executorService.submit(new ProcessTask(process)));
+      for (Future<Integer> future : futures) {
+        try {
+          future.get();
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }
       executorService.shutdown();
     }
   }
