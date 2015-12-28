@@ -117,40 +117,37 @@ public class LuaDriver implements RequestStreamHandler {
     ProcessBuilder processBuilder = new ProcessBuilder(lua, script.getAbsolutePath());
     Process process = processBuilder.start();
 
-    OutputStream stdinStream = process.getOutputStream();
-    InputStream stdoutStream = process.getInputStream();
-    InputStream stderrStream = process.getErrorStream();
+    try (InputStream stdoutStream = process.getInputStream(); InputStream stderrStream = process.getErrorStream()) {
+      OutputStream stdinStream = process.getOutputStream();
 
-    ExecutorService executorService = Executors.newFixedThreadPool(4);
-    Future<Integer> stdinFuture = executorService.submit(new CopyTask(inputStream, stdinStream));
-    Future<Integer> stdoutFuture = executorService.submit(new CopyTask(stdoutStream, outputStream));
-    Future<Integer> stderrFuture = executorService.submit(new CopyTask(stderrStream, System.err));
+      ExecutorService executorService = Executors.newFixedThreadPool(4);
+      Future<Integer> stdinFuture = executorService.submit(new CopyTask(inputStream, stdinStream));
+      Future<Integer> stdoutFuture = executorService.submit(new CopyTask(stdoutStream, outputStream));
+      Future<Integer> stderrFuture = executorService.submit(new CopyTask(stderrStream, System.err));
 
-    try {
-      System.out.println("stdinFuture.get");
-      stdinFuture.get();
-      System.out.println("stdoutFuture.get");
-      stdoutFuture.get();
-      System.out.println("stderrFuture.get");
-      stderrFuture.get();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+      try {
+        System.out.println("stdinFuture.get");
+        stdinFuture.get();
+        System.out.println("stdoutFuture.get");
+        stdoutFuture.get();
+        System.out.println("stderrFuture.get");
+        stderrFuture.get();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
 
-    executorService.shutdown();
+      executorService.shutdown();
 
-    stdoutStream.close();
-    stderrStream.close();
-
-    try {
-      System.out.println("process.waitFor");
-      process.waitFor();
-      System.out.println("process.exitValue");
-      int result = process.exitValue();
-      System.out.println("process.exitValue=" + result);
-    } catch (InterruptedException e) {
-      process.destroy();
-      throw new RuntimeException(e);
+      try {
+        System.out.println("process.waitFor");
+        process.waitFor();
+        System.out.println("process.exitValue");
+        int result = process.exitValue();
+        System.out.println("process.exitValue=" + result);
+      } catch (InterruptedException e) {
+        process.destroy();
+        throw new RuntimeException(e);
+      }
     }
   }
 
