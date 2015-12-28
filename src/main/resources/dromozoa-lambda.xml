@@ -1,0 +1,5 @@
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+  <entry key="lua">lua</entry>
+  <entry key="script">main.lua</entry>
+</properties>
