@@ -21,7 +21,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 
 public class LuaDriver implements RequestStreamHandler {
-  private static int pipe(InputStream inputStream, OutputStream outputStream) throws IOException {
+  private static int copy(InputStream inputStream, OutputStream outputStream) throws IOException {
     int result = 0;
 
     byte[] buffer = new byte[4096];
@@ -37,18 +37,37 @@ public class LuaDriver implements RequestStreamHandler {
     return result;
   }
 
-  private static class PipeTask implements Callable<Integer> {
+  private static class CopyTask implements Callable<Integer> {
     private InputStream inputStream_;
     private OutputStream outputStream_;
 
-    PipeTask(InputStream inputStream, OutputStream outputStream) {
+    CopyTask(InputStream inputStream, OutputStream outputStream) {
       inputStream_ = inputStream;
       outputStream_ = outputStream;
     }
 
     @Override
     public Integer call() throws IOException {
-      return pipe(inputStream_, outputStream_);
+      return copy(inputStream_, outputStream_);
+    }
+  }
+
+  private static class ProcessTask implements Callable<Integer> {
+    private Process process_;
+
+    ProcessTask(Process process) {
+      process_ = process;
+    }
+
+    @Override
+    public Integer call() throws InterruptedException {
+      try {
+        process_.waitFor();
+        return process_.exitValue();
+      } catch (InterruptedException e) {
+        process_.destroy();
+        throw e;
+      }
     }
   }
 
@@ -68,8 +87,9 @@ public class LuaDriver implements RequestStreamHandler {
       } else {
         File file = File.createTempFile("dromozoa-lambda", null);
         file.deleteOnExit();
-        try (InputStream inputStream = getResourceAsStream(name); OutputStream outputStream = new FileOutputStream(file)) {
-          pipe(inputStream, outputStream);
+        try (InputStream inputStream = getResourceAsStream(name);
+            OutputStream outputStream = new FileOutputStream(file)) {
+          copy(inputStream, outputStream);
         }
         return file;
       }
@@ -97,32 +117,40 @@ public class LuaDriver implements RequestStreamHandler {
     ProcessBuilder processBuilder = new ProcessBuilder(lua, script.getAbsolutePath());
     Process process = processBuilder.start();
 
-    // ExecutorService executorService = Executors.newFixedThreadPool(4);
-    ExecutorService executorService = Executors.newFixedThreadPool(4);
-    List<Future<Integer>> futures = new ArrayList<Future<Integer>>();
-    // futures.add(executorService.submit(new PipeTask(inputStream, outputStream)));
-    futures.add(executorService.submit(new PipeTask(inputStream, process.getOutputStream())));
-    futures.add(executorService.submit(new PipeTask(process.getInputStream(), outputStream)));
-    futures.add(executorService.submit(new PipeTask(process.getErrorStream(), System.err)));
+    OutputStream stdinStream = process.getOutputStream();
+    InputStream stdoutStream = process.getInputStream();
+    InputStream stderrStream = process.getErrorStream();
 
-    for (Future<Integer> future : futures) {
-      try {
-        Integer v = future.get();
-      } catch (InterruptedException e) {
-        System.err.println(e);
-      } catch (ExecutionException e) {
-        System.err.println(e);
-      }
+    ExecutorService executorService = Executors.newFixedThreadPool(4);
+    Future<Integer> stdinFuture = executorService.submit(new CopyTask(inputStream, stdinStream));
+    Future<Integer> stdoutFuture = executorService.submit(new CopyTask(stdoutStream, outputStream));
+    Future<Integer> stderrFuture = executorService.submit(new CopyTask(stderrStream, System.err));
+
+    try {
+      System.out.println("stdinFuture.get");
+      stdinFuture.get();
+      System.out.println("stdoutFuture.get");
+      stdoutFuture.get();
+      System.out.println("stderrFuture.get");
+      stderrFuture.get();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
 
     executorService.shutdown();
 
+    stdoutStream.close();
+    stderrStream.close();
+
     try {
+      System.out.println("process.waitFor");
       process.waitFor();
+      System.out.println("process.exitValue");
       int result = process.exitValue();
-      System.out.println("result=" + result);
+      System.out.println("process.exitValue=" + result);
     } catch (InterruptedException e) {
       process.destroy();
+      throw new RuntimeException(e);
     }
   }
 
