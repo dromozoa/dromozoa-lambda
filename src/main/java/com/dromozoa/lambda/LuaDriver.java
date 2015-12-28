@@ -9,12 +9,15 @@ import java.lang.Process;
 import java.lang.ProcessBuilder;
 import java.net.URL;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -23,8 +26,7 @@ import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 public class LuaDriver implements RequestStreamHandler {
   private static int copy(InputStream inputStream, OutputStream outputStream) throws IOException {
     int result = 0;
-
-    byte[] buffer = new byte[4096];
+    byte[] buffer = new byte[256];
     while (true) {
       int n = inputStream.read(buffer, 0, buffer.length);
       if (n == -1) {
@@ -33,22 +35,33 @@ public class LuaDriver implements RequestStreamHandler {
       outputStream.write(buffer, 0, n);
       result += n;
     }
-
     return result;
   }
 
   private static class CopyTask implements Callable<Integer> {
     private InputStream inputStream_;
     private OutputStream outputStream_;
+    private boolean closeOutputStream_;
 
     CopyTask(InputStream inputStream, OutputStream outputStream) {
       inputStream_ = inputStream;
       outputStream_ = outputStream;
     }
 
+    CopyTask setCloseOutputStream() {
+      closeOutputStream_ = true;
+      return this;
+    }
+
     @Override
     public Integer call() throws IOException {
-      return copy(inputStream_, outputStream_);
+      try {
+        return copy(inputStream_, outputStream_);
+      } finally {
+        if (closeOutputStream_) {
+          outputStream_.close();
+        }
+      }
     }
   }
 
@@ -87,8 +100,7 @@ public class LuaDriver implements RequestStreamHandler {
       } else {
         File file = File.createTempFile("dromozoa-lambda", null);
         file.deleteOnExit();
-        try (InputStream inputStream = getResourceAsStream(name);
-            OutputStream outputStream = new FileOutputStream(file)) {
+        try (InputStream inputStream = getResourceAsStream(name); OutputStream outputStream = new FileOutputStream(file)) {
           copy(inputStream, outputStream);
         }
         return file;
@@ -109,45 +121,42 @@ public class LuaDriver implements RequestStreamHandler {
     return properties;
   }
 
+  private static Integer getFuture(Future<Integer> future, Context context) {
+    try {
+      return future.get();
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+    return null;
+  }
+
   public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
     Properties properties = getResourceAsProperties("dromozoa-lambda.xml");
     String lua = properties.getProperty("lua", "lua");
     File script = getResourceAsFile(properties.getProperty("script", "main.lua"));
 
     ProcessBuilder processBuilder = new ProcessBuilder(lua, script.getAbsolutePath());
+    Map<String, String> env = processBuilder.environment();
+    for (Map.Entry<String, String> i : env.entrySet()) {
+      System.out.println(i.getKey() + " " + i.getValue());
+    }
+
     Process process = processBuilder.start();
 
     try (InputStream stdoutStream = process.getInputStream(); InputStream stderrStream = process.getErrorStream()) {
       OutputStream stdinStream = process.getOutputStream();
 
       ExecutorService executorService = Executors.newFixedThreadPool(4);
-      Future<Integer> stdinFuture = executorService.submit(new CopyTask(inputStream, stdinStream));
+      Future<Integer> stdinFuture = executorService.submit(new CopyTask(inputStream, stdinStream).setCloseOutputStream());
       Future<Integer> stdoutFuture = executorService.submit(new CopyTask(stdoutStream, outputStream));
       Future<Integer> stderrFuture = executorService.submit(new CopyTask(stderrStream, System.err));
+      Future<Integer> processFuture = executorService.submit(new ProcessTask(process));
 
-      try {
-        System.out.println("stdinFuture.get");
-        stdinFuture.get();
-        System.out.println("stdoutFuture.get");
-        stdoutFuture.get();
-        System.out.println("stderrFuture.get");
-        stderrFuture.get();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-
+      getFuture(stdinFuture, context);
+      getFuture(stdoutFuture, context);
+      getFuture(stderrFuture, context);
+      getFuture(processFuture, context);
       executorService.shutdown();
-
-      try {
-        System.out.println("process.waitFor");
-        process.waitFor();
-        System.out.println("process.exitValue");
-        int result = process.exitValue();
-        System.out.println("process.exitValue=" + result);
-      } catch (InterruptedException e) {
-        process.destroy();
-        throw new RuntimeException(e);
-      }
     }
   }
 
