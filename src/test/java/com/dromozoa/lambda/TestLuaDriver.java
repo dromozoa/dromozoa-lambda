@@ -1,14 +1,15 @@
 package com.dromozoa.lambda;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.CognitoIdentity;
 import com.amazonaws.services.lambda.runtime.ClientContext;
+import com.amazonaws.services.lambda.runtime.CognitoIdentity;
+import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestLuaDriver {
@@ -67,8 +68,9 @@ public class TestLuaDriver {
   @Test
   public void test() throws IOException {
     LuaDriver self = new LuaDriver();
-    try (InputStream inputStream = new ByteArrayInputStream("123".getBytes())) {
-      self.handleRequest(inputStream, System.out, new MockContext());
+    try (ByteArrayInputStream inputStream = new ByteArrayInputStream("123".getBytes()); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+      self.handleRequest(inputStream, outputStream, new MockContext());
+      Assert.assertEquals("AWS-REQUEST-ID\nLOG-GROUP-NAME\nLOG-STREAM-NAME\nFUNCTION-NAME\nINVOKED-FUNCTION-ARN\n123\n", outputStream.toString());
     }
   }
 }

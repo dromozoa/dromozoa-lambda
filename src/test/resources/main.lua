@@ -1,7 +1,6 @@
-local x = io.read("*a")
-print(_VERSION)
 print(os.getenv("AWS_REQUEST_ID"))
 print(os.getenv("LOG_GROUP_NAME"))
 print(os.getenv("LOG_STREAM_NAME"))
 print(os.getenv("FUNCTION_NAME"))
 print(os.getenv("INVOKED_FUNCTION_ARN"))
+print(io.read("*a"))
