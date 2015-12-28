@@ -1,3 +1,5 @@
+#! /usr/bin/env lua
+
 -- Copyright (C) 2015 Tomoyuki Fujimori <moyu@dromozoa.com>
 --
 -- This file is part of dromozoa-lambda.
@@ -15,10 +17,18 @@
 -- You should have received a copy of the GNU General Public License
 -- along with dromozoa-lambda.  If not, see <http://www.gnu.org/licenses/>.
 
-print(os.getenv("AWS_REQUEST_ID"))
-print(os.getenv("LOG_GROUP_NAME"))
-print(os.getenv("LOG_STREAM_NAME"))
-print(os.getenv("FUNCTION_NAME"))
-print(os.getenv("INVOKED_FUNCTION_ARN"))
-print(io.read("*a"))
-print(...)
+local ipairs = require "dromozoa.commons.ipairs"
+local xml = require "dromozoa.commons.xml"
+
+io.write([[
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+  <entry key="lua">lua</entry>
+  <entry key="script">main.lua</entry>
+]])
+
+for i, v in ipairs(arg) do
+  io.write(("  <entry key=\"arg[%d]\">%s</entry>\n"):format(i, xml.escape(v)))
+end
+
+io.write("</properties>\n")

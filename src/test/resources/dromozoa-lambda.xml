@@ -1,0 +1,8 @@
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+  <entry key="lua">lua</entry>
+  <entry key="script">main.lua</entry>
+  <entry key="arg[1]">foo</entry>
+  <entry key="arg[2]">bar</entry>
+  <entry key="arg[3]">baz</entry>
+</properties>
