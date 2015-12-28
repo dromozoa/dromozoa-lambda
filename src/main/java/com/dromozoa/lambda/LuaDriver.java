@@ -137,10 +137,11 @@ public class LuaDriver implements RequestStreamHandler {
 
     ProcessBuilder processBuilder = new ProcessBuilder(lua, script.getAbsolutePath());
     Map<String, String> env = processBuilder.environment();
-    for (Map.Entry<String, String> i : env.entrySet()) {
-      System.out.println(i.getKey() + " " + i.getValue());
-    }
-
+    env.put("AWS_REQUEST_ID", context.getAwsRequestId());
+    env.put("LOG_GROUP_NAME", context.getLogGroupName());
+    env.put("LOG_STREAM_NAME", context.getLogStreamName());
+    env.put("FUNCTION_NAME", context.getFunctionName());
+    env.put("INVOKED_FUNCTION_ARN", context.getInvokedFunctionArn());
     Process process = processBuilder.start();
 
     try (InputStream stdoutStream = process.getInputStream(); InputStream stderrStream = process.getErrorStream()) {
@@ -158,10 +159,5 @@ public class LuaDriver implements RequestStreamHandler {
       getFuture(processFuture, context);
       executorService.shutdown();
     }
-  }
-
-  public static void main(String[] args) throws Exception {
-    LuaDriver self = new LuaDriver();
-    self.handleRequest(System.in, System.out, null);
   }
 }
