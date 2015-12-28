@@ -11,7 +11,7 @@ description = {
   maintainer = "Tomoyuki Fujimori <moyu@dromozoa.com>";
 }
 dependencies = {
-  "dromozoa-commons";
+  "dromozoa-amalgamate";
 }
 build = {
   type = "builtin";
