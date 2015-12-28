@@ -140,7 +140,19 @@ public class LuaDriver implements RequestStreamHandler {
     String lua = properties.getProperty("lua", "lua");
     File script = getResourceAsFile(properties.getProperty("script", "main.lua"));
 
-    ProcessBuilder processBuilder = new ProcessBuilder(lua, script.getAbsolutePath());
+    List<String> commands = new ArrayList<String>();
+    commands.add(lua);
+    commands.add(script.getAbsolutePath());
+    for (int i = 1; ; ++i) {
+      String arg = properties.getProperty("arg[" + i + "]");
+      if (arg == null) {
+        break;
+      } else {
+        commands.add(arg);
+      }
+    }
+
+    ProcessBuilder processBuilder = new ProcessBuilder(commands);
     Map<String, String> env = processBuilder.environment();
     env.put("AWS_REQUEST_ID", context.getAwsRequestId());
     env.put("LOG_GROUP_NAME", context.getLogGroupName());

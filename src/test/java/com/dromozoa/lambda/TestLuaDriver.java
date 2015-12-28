@@ -87,7 +87,7 @@ public class TestLuaDriver {
     LuaDriver self = new LuaDriver();
     try (ByteArrayInputStream inputStream = new ByteArrayInputStream("123".getBytes()); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
       self.handleRequest(inputStream, outputStream, new MockContext());
-      Assert.assertEquals("AWS-REQUEST-ID\nLOG-GROUP-NAME\nLOG-STREAM-NAME\nFUNCTION-NAME\nINVOKED-FUNCTION-ARN\n123\n", outputStream.toString());
+      Assert.assertEquals("AWS-REQUEST-ID\nLOG-GROUP-NAME\nLOG-STREAM-NAME\nFUNCTION-NAME\nINVOKED-FUNCTION-ARN\n123\nfoo\tbar\tbaz\n", outputStream.toString());
     }
   }
 }
