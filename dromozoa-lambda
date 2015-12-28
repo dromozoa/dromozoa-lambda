@@ -20,7 +20,7 @@
 output=$1
 script=$2
 case x$script in
-  x) echo 'usage: dromozoa-lambda-jar output script [args]'; exit 1;;
+  x) echo 'usage: dromozoa-lambda output script [args]'; exit 1;;
 esac
 shift 2
 
