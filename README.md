@@ -1,3 +1,3 @@
 # dromozoa-lambda
 
-Lua driver for AWS Lambda.
+OBSOLETED: Lua driver for AWS Lambda.
